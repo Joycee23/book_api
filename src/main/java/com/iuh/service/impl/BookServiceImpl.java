@@ -60,6 +60,13 @@ public class BookServiceImpl implements BookService {
     @PreAuthorize("hasRole('ADMIN')")
     public PageResponse<Object> findAll(int pageNo, int pageSize, String sortBy, String categorySlug, String search) {
         Pageable pageable = PageUtil.getPageable(pageNo, pageSize, sortBy);
+
+        // === SỬA 1 ===
+        // Nếu slug là một chuỗi rỗng (từ nút "All"), hãy đặt nó là null
+        if (categorySlug != null && categorySlug.isEmpty()) {
+            categorySlug = null;
+        }
+
         Page<Book> books = bookRepository.findWithFilterAndSearch(categorySlug, search, search, pageable);
         List<BookResponseAdmin> items = books.map(bookMapper::toResponseAdmin).getContent();
 
@@ -85,6 +92,13 @@ public class BookServiceImpl implements BookService {
     @Override
     public PageResponse<Object> findAllBooksStatusActive(int pageNo, int pageSize, String sortBy, String categorySlug, String search) {
         Pageable pageable = PageUtil.getPageable(pageNo, pageSize, sortBy);
+
+        // === SỬA 2 ===
+        // Nếu slug là một chuỗi rỗng (từ nút "All"), hãy đặt nó là null
+        if (categorySlug != null && categorySlug.isEmpty()) {
+            categorySlug = null;
+        }
+
         Page<Book> books = bookRepository.findWithFilterAndSearchStatusActive(categorySlug, search, search, pageable);
         List<BookResponse> items = books.map(bookMapper::toResponse).getContent();
 
