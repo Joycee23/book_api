@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "User Controller")
 @RestController
 @RequestMapping("/users")
+@CrossOrigin(origins = "http://localhost:5173")
 @RequiredArgsConstructor
 @FieldDefaults(makeFinal = true, level = lombok.AccessLevel.PRIVATE)
 public class UserController {

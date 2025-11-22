@@ -7,12 +7,11 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
@@ -37,38 +36,47 @@ public class SecurityConfig {
     public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
         this.customJwtDecoder = customJwtDecoder;
     }
-
     @Bean
     SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
-        httpSecurity.authorizeHttpRequests(authorizeRequests -> authorizeRequests
-                .requestMatchers(HttpMethod.POST, AUTH_ENDPOINTS).permitAll()
-                .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                .anyRequest().authenticated());
+        httpSecurity
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
+                        .requestMatchers(HttpMethod.POST, "/users/add").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/refresh", "/auth/logout", "/auth/introspect").permitAll()
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .anyRequest().authenticated()
+                )
 
-        httpSecurity.oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt
-                        .decoder(customJwtDecoder)
-                        .jwtAuthenticationConverter(jwtAuthenticationConverter()))
-                .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
-
-        httpSecurity.csrf(AbstractHttpConfigurer::disable);
+                .csrf(AbstractHttpConfigurer::disable)
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt
+                                .decoder(customJwtDecoder)
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter())
+                        )
+                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
+                );
 
         return httpSecurity.build();
     }
 
+
+
     @Bean
-    CorsFilter corsFilter() {
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration corsConfig = new CorsConfiguration();
-
         corsConfig.setAllowCredentials(true);
-        corsConfig.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:8080", "http://localhost:8081"));
-        corsConfig.addAllowedMethod("*");
-        corsConfig.addAllowedHeader("*");
+        corsConfig.setAllowedOrigins(List.of(
+                "http://localhost:3000",
+                "http://localhost:8080",
+                "http://localhost:8081",
+                "http://localhost:5173"
+        ));
+        corsConfig.setAllowedHeaders(List.of("*"));
+        corsConfig.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
 
-        var configSource = new UrlBasedCorsConfigurationSource();
-        configSource.registerCorsConfiguration("/**", corsConfig);
-
-        return new CorsFilter(configSource);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", corsConfig);
+        return source;
     }
 
     @Bean
@@ -80,10 +88,5 @@ public class SecurityConfig {
         jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwtGrantedAuthoritiesConverter);
 
         return jwtAuthenticationConverter;
-    }
-
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 }

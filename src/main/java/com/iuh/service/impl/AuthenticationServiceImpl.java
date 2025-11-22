@@ -18,12 +18,10 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -37,11 +35,11 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
-@FieldDefaults(makeFinal = true, level = lombok.AccessLevel.PRIVATE)
+@FieldDefaults(level = lombok.AccessLevel.PRIVATE)
 public class AuthenticationServiceImpl implements AuthenticationService {
-    UserRepository userRepository;
-    InvalidatedTokenRepository invalidatedTokenRepository;
+    final UserRepository userRepository;
+    final InvalidatedTokenRepository invalidatedTokenRepository;
+    final PasswordEncoder passwordEncoder;
 
     @NonFinal
     @Value("${jwt.signerKey}")
@@ -54,6 +52,16 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @NonFinal
     @Value("${jwt.refreshable-duration}")
     protected long refreshableDuration;
+
+    // Constructor - XÓA @Lazy vì đã tách PasswordEncoder ra config riêng
+    public AuthenticationServiceImpl(
+            UserRepository userRepository,
+            InvalidatedTokenRepository invalidatedTokenRepository,
+            PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.invalidatedTokenRepository = invalidatedTokenRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     @Override
     public IntrospectResponse introspect(IntrospectRequest request) throws JOSEException, ParseException {
@@ -70,16 +78,36 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
     @Override
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
+        log.info("=== AUTHENTICATION START ===");
+        log.info("🔐 Attempting to authenticate user: {}", request.getUsername());
+        log.info("📝 Password from request: {}", request.getPassword());
+
         var user = userRepository
                 .findByUsername(request.getUsername())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.error("❌ USER NOT FOUND: {}", request.getUsername());
+                    return new AppException(ErrorCode.USER_NOT_FOUND);
+                });
 
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
+        log.info("✅ User found in database");
+        log.info("👤 Username from DB: {}", user.getUsername());
+        log.info("🔒 Encoded password from DB: {}", user.getPassword());
+        log.info("🔑 PasswordEncoder instance: {}", passwordEncoder.getClass().getName());
 
+        // Test password matching
         boolean authenticated = passwordEncoder.matches(request.getPassword(), user.getPassword());
+
+        log.info("🎯 Password match result: {}", authenticated);
+
         if (!authenticated) {
+            log.error("❌ AUTHENTICATION FAILED - Password does not match!");
+            log.error("Raw password: {}", request.getPassword());
+            log.error("Expected encoded: {}", user.getPassword());
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
+
+        log.info("✅ AUTHENTICATION SUCCESSFUL for user: {}", user.getUsername());
+        log.info("=== AUTHENTICATION END ===");
 
         return AuthenticationResponse.builder()
                 .authenticated(true)
@@ -105,13 +133,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         }
     }
 
-    /**
-     * Verify token by checking signature, expiration time and existence in invalidated token repository.
-     *
-     * @param token     String
-     * @param isRefresh boolean to check if token is refresh token otherwise access token
-     * @return SignedJWT
-     */
     private SignedJWT verifyToken(String token, boolean isRefresh) throws ParseException, JOSEException {
         JWSVerifier jwsVerifier = new MACVerifier(signerKey.getBytes());
 
@@ -135,12 +156,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         return signedJWT;
     }
 
-    /**
-     * Refresh token by creating new token with new expiration time and invalidating old token.
-     *
-     * @param request RefreshRequest
-     * @return AuthenticationResponse
-     */
     @Override
     public AuthenticationResponse refreshToken(RefreshRequest request) throws ParseException, JOSEException {
         SignedJWT signedJWT = verifyToken(request.getRefreshToken(), true);
@@ -165,12 +180,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .build();
     }
 
-    /**
-     * Generate token for user with HS512 algorithm. Subject is username of user.
-     *
-     * @param user User
-     * @return String
-     */
     private String generateToken(User user, long duration) {
         JWSHeader jwsHeader = new JWSHeader(JWSAlgorithm.HS512);
 
@@ -229,13 +238,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         }
     }
 
-    /**
-     * Build scope for user.
-     * scope: USER -> ROLE_USER
-     *
-     * @param user User
-     * @return String
-     */
     private String buildScope(User user) {
         StringJoiner joiner = new StringJoiner(" ");
 

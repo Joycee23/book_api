@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Role Controller")
 @RestController
 @RequestMapping("/roles")
+@CrossOrigin(origins = "http://localhost:5173")
 @RequiredArgsConstructor
 @FieldDefaults(makeFinal = true, level = lombok.AccessLevel.PRIVATE)
 public class RoleController {

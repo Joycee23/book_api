@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/books")
 @RequiredArgsConstructor
 @FieldDefaults(makeFinal = true, level = lombok.AccessLevel.PRIVATE)
+@CrossOrigin(origins = "http://localhost:5173")
 public class BookController {
     BookService bookService;
 

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Discount Controller")
 @RestController
 @RequestMapping("/discounts")
+@CrossOrigin(origins = "http://localhost:5173")
 @RequiredArgsConstructor
 @FieldDefaults(makeFinal = true, level = lombok.AccessLevel.PRIVATE)
 @Slf4j

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/categories")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:5173")
 @FieldDefaults(makeFinal = true, level = lombok.AccessLevel.PRIVATE)
 public class CategoryController {
     CategoryService categoryService;

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Order Controller")
 @RestController
 @RequestMapping("/orders")
+@CrossOrigin(origins = "http://localhost:5173")
 @RequiredArgsConstructor
 @FieldDefaults(makeFinal = true, level = lombok.AccessLevel.PRIVATE)
 public class OrderController {

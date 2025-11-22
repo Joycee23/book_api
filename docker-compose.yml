@@ -48,28 +48,6 @@ services:
         limits:
           memory: 256M
       
-  redis:
-    container_name: redis
-    image: redis:7.4.1-alpine
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports:
-      - "6379:6379"
-    networks:
-      - backend
-    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
-    volumes:
-      - redis-data:/data
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-
 networks:
   backend:
     driver: bridge
-
-volumes:
-  mysql-data:
-  redis-data:
