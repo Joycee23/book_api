@@ -7,8 +7,4 @@ spring:
   application:
     name: bookstore-api
   profiles:
-    active: @spring.profiles.active@
-
-  # Thêm khối này để tắt (exclude) Redis và sửa lỗi khởi động
-  autoconfigure:
-    exclude: org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+    active: "@spring.profiles.active@"

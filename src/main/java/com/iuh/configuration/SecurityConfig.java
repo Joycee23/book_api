@@ -22,71 +22,73 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private static final String[] AUTH_ENDPOINTS = {
-            "/users/add", "/auth/login", "/auth/introspect", "/auth/logout", "/auth/refresh"
-    };
+        private static final String[] AUTH_ENDPOINTS = {
+                        "/users/add", "/auth/login", "/auth/introspect", "/auth/logout", "/auth/refresh"
+        };
 
-    private static final String[] PUBLIC_ENDPOINTS = {
-            "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
-            "/books/**", "/categories/**", "/publishers/**", "/reviews/**"
-    };
+        private static final String[] PUBLIC_ENDPOINTS = {
+                        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
+                        "/books/**", "/categories/**", "/publishers/**", "/reviews/**"
+        };
 
-    private final CustomJwtDecoder customJwtDecoder;
+        private final CustomJwtDecoder customJwtDecoder;
 
-    public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
-        this.customJwtDecoder = customJwtDecoder;
-    }
-    @Bean
-    SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
-        httpSecurity
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-                        .requestMatchers(HttpMethod.POST, "/users/add").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/refresh", "/auth/logout", "/auth/introspect").permitAll()
-                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                        .anyRequest().authenticated()
-                )
+        public SecurityConfig(CustomJwtDecoder customJwtDecoder) {
+                this.customJwtDecoder = customJwtDecoder;
+        }
 
-                .csrf(AbstractHttpConfigurer::disable)
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt
-                                .decoder(customJwtDecoder)
-                                .jwtAuthenticationConverter(jwtAuthenticationConverter())
-                        )
-                        .authenticationEntryPoint(new JwtAuthenticationEntryPoint())
-                );
+        @Bean
+        SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
+                httpSecurity
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
+                                                .requestMatchers(HttpMethod.POST, "/users/add").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/refresh",
+                                                                "/auth/logout", "/auth/introspect")
+                                                .permitAll()
+                                                .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                                                .anyRequest().authenticated())
 
-        return httpSecurity.build();
-    }
+                                .csrf(AbstractHttpConfigurer::disable)
+                                .oauth2ResourceServer(oauth2 -> oauth2
+                                                .jwt(jwt -> jwt
+                                                                .decoder(customJwtDecoder)
+                                                                .jwtAuthenticationConverter(
+                                                                                jwtAuthenticationConverter()))
+                                                .authenticationEntryPoint(new JwtAuthenticationEntryPoint()));
 
+                return httpSecurity.build();
+        }
 
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration corsConfig = new CorsConfiguration();
+                corsConfig.setAllowCredentials(true);
+                corsConfig.setAllowedOrigins(List.of(
+                                "http://localhost:3000",
+                                "http://localhost:8080",
+                                "http://localhost:8081",
+                                "http://localhost:5173"));
+                corsConfig.setAllowedHeaders(List.of("*"));
+                corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration corsConfig = new CorsConfiguration();
-        corsConfig.setAllowCredentials(true);
-        corsConfig.setAllowedOrigins(List.of(
-                "http://localhost:3000",
-                "http://localhost:8080",
-                "http://localhost:8081",
-                "http://localhost:5173"
-        ));
-        corsConfig.setAllowedHeaders(List.of("*"));
-        corsConfig.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", corsConfig);
+                return source;
+        }
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", corsConfig);
-        return source;
-    }
+        @Bean
+        JwtAuthenticationConverter jwtAuthenticationConverter() {
+                JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+                jwtGrantedAuthoritiesConverter.setAuthorityPrefix("");
+                jwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("scope");
 
-    @Bean
-    JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-        jwtGrantedAuthoritiesConverter.setAuthorityPrefix("");
+                JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
+                jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwtGrantedAuthoritiesConverter);
 
-        JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
-        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwtGrantedAuthoritiesConverter);
+                // Ensure the principal name is extracted from the 'sub' claim
+                jwtAuthenticationConverter.setPrincipalClaimName("sub");
 
-        return jwtAuthenticationConverter;
-    }
+                return jwtAuthenticationConverter;
+        }
 }

@@ -24,10 +24,10 @@ import java.util.HashSet;
 @FieldDefaults(makeFinal = true, level = lombok.AccessLevel.PRIVATE)
 public class ApplicationInitConfig {
     @NonFinal
-    static final String ADMIN_USERNAME = "admin";
+    static final String ADMIN_USERNAME = "admin123";
 
     @NonFinal
-    static final String ADMIN_PASSWORD = "admin123";
+    static final String ADMIN_PASSWORD = "123456";
 
     PasswordEncoder passwordEncoder;
 
