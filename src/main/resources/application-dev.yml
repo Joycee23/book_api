@@ -11,11 +11,7 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      timeout: 60000
+
 jwt:
   signerKey: ${JWT_SIGNER_KEY:uGn1btxMAz77FBExhcThICMJpEWG4fwLu6pJiwlObSIubo7ivat3KSD54PRN0467}
   valid-duration: ${JWT_VALID_DURATION:180} # seconds
@@ -25,6 +21,12 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+logging:
+  level:
+    com.iuh.service.impl.UserServiceImpl: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
 openapi:
   service:
     title: Bookstore API documentation

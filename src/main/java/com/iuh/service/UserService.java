@@ -14,7 +14,7 @@ public interface UserService {
 
     UserResponse findById(String id);
 
-    UserResponse getMyInfo() throws JsonProcessingException;
+    UserResponse getMyInfo();
 
     UserResponse update(String id, UserUpdateRequest request) throws JsonProcessingException;
 

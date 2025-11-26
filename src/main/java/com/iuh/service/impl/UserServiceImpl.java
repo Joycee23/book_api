@@ -3,10 +3,8 @@
 package com.iuh.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iuh.constant.AppConstant;
 import com.iuh.constant.PredefinedRole;
-import com.iuh.constant.RedisKey;
 import com.iuh.dto.request.UserCreationRequest;
 import com.iuh.dto.request.UserUpdateAvatarRequest;
 import com.iuh.dto.request.UserUpdatePasswordRequest;
@@ -22,7 +20,7 @@ import com.iuh.mapper.UserMapper;
 import com.iuh.repository.RoleRepository;
 import com.iuh.repository.UserRepository;
 import com.iuh.repository.specification.UserSpecificationsBuilder;
-import com.iuh.service.RedisService;
+
 import com.iuh.service.UserService;
 import com.iuh.util.PageUtil;
 import jakarta.transaction.Transactional;
@@ -30,7 +28,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -42,7 +40,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,15 +49,11 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 public class UserServiceImpl implements UserService {
-    private static final int DEFAULT_CACHE_HOURS = 1;
-    private static final int EXTENDED_CACHE_HOURS = 2;
 
     UserRepository userRepository;
     RoleRepository roleRepository;
     UserMapper userMapper;
     PasswordEncoder passwordEncoder;
-    RedisService<String, String, String> redisService;
-    ObjectMapper redisObjectMapper;
 
     /**
      * Save user to database
@@ -94,19 +88,28 @@ public class UserServiceImpl implements UserService {
     @PreAuthorize("hasRole('ADMIN')")
     public UserResponse findById(String id) {
         User user = getUserById(id);
-        cacheUser(user, DEFAULT_CACHE_HOURS);
         return userMapper.toResponse(user);
     }
 
     /**
-     * Get user info from cache or database
+     * Get user info from database
      *
      * @return UserResponse
      */
     @Override
     public UserResponse getMyInfo() {
         String username = getCurrentUsername();
-        return getUserResponseFromCacheOrDatabase(username);
+        log.debug("Getting user info for username: {}", username);
+
+        if (username == null || username.equals("anonymousUser")) {
+            log.error("No authenticated user found or user is anonymous");
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        return userMapper.toResponse(user);
     }
 
     /**
@@ -124,16 +127,13 @@ public class UserServiceImpl implements UserService {
         userMapper.updateUser(user, request);
         User updatedUser = userRepository.save(user);
 
-        cacheUser(updatedUser, EXTENDED_CACHE_HOURS);
         return userMapper.toResponse(updatedUser);
     }
 
     @Override
     @PreAuthorize("hasRole('ADMIN')")
     public void delete(String id) {
-        User user = getUserById(id);
         userRepository.deleteById(id);
-        removeCachedUser(user.getUsername());
     }
 
     /**
@@ -197,7 +197,6 @@ public class UserServiceImpl implements UserService {
         User user = getUserById(id);
         user.setStatus(status);
         userRepository.save(user);
-        cacheUser(user, DEFAULT_CACHE_HOURS);
     }
 
     @Override
@@ -210,7 +209,6 @@ public class UserServiceImpl implements UserService {
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
-        cacheUser(user, DEFAULT_CACHE_HOURS);
     }
 
     @Override
@@ -218,7 +216,6 @@ public class UserServiceImpl implements UserService {
         User user = getUserById(id);
         user.setAvatar(request.getAvatar());
         userRepository.save(user);
-        cacheUser(user, DEFAULT_CACHE_HOURS);
     }
 
     /**
@@ -233,67 +230,11 @@ public class UserServiceImpl implements UserService {
      * Get current authenticated username
      */
     private String getCurrentUsername() {
-        return SecurityContextHolder.getContext().getAuthentication().getName();
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        log.debug("Authentication object: {}", authentication);
+        log.debug("Authentication name: {}", authentication.getName());
+        log.debug("Authentication principal: {}", authentication.getPrincipal());
+        return authentication.getName();
     }
 
-    /**
-     * Get user from cache or database based on username
-     */
-    private UserResponse getUserResponseFromCacheOrDatabase(String username) {
-        // Try to get user from cache
-        User cachedUser = getCachedUser(username);
-        if (cachedUser != null) {
-            log.debug("Cache hit for user: {}", username);
-            return userMapper.toResponse(cachedUser);
-        }
-
-        // If not in cache, get from database and cache it
-        log.debug("Cache miss for user: {}, fetching from database", username);
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-        cacheUser(user, DEFAULT_CACHE_HOURS);
-        return userMapper.toResponse(user);
-    }
-
-    /**
-     * Get user from cache
-     */
-    private User getCachedUser(String username) {
-        String userJson = redisService.hashGet(RedisKey.USER_INFO, username);
-        if (StringUtils.isEmpty(userJson)) {
-            return null;
-        }
-
-        try {
-            return redisObjectMapper.readValue(userJson, User.class);
-        } catch (JsonProcessingException e) {
-            log.error("Error deserializing cached user: {}", username, e);
-            removeCachedUser(username); // Remove invalid cache entry
-            return null;
-        }
-    }
-
-    /**
-     * Cache user with specified expiration
-     */
-    private void cacheUser(User user, int expireHours) {
-        try {
-            String userJson = redisObjectMapper.writeValueAsString(user);
-            redisService.hashSet(RedisKey.USER_INFO, user.getUsername(), userJson);
-            redisService.setExpireHours(RedisKey.USER_INFO, expireHours);
-            log.debug("User cached successfully: {}", user.getUsername());
-        } catch (JsonProcessingException e) {
-            log.error("Error serializing user for caching: {}", user.getUsername(), e);
-            // Continue without caching - fail gracefully
-        }
-    }
-
-    /**
-     * Remove user from cache
-     */
-    private void removeCachedUser(String username) {
-        redisService.delete(RedisKey.USER_INFO, username);
-        log.debug("Removed user from cache: {}", username);
-    }
 }
