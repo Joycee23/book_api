@@ -1,3 +1,5 @@
+// src/com/iuh/service/impl/UserServiceImpl.java (Mã ĐẦY ĐỦ ĐÃ SỬA LỖI)
+
 package com.iuh.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -147,7 +149,20 @@ public class UserServiceImpl implements UserService {
     @PreAuthorize("hasRole('ADMIN')")
     public PageResponse<Object> findAll(int pageNo, int pageSize, String sortBy, String search) {
         Pageable pageable = PageUtil.getPageable(pageNo, pageSize, sortBy);
-        Page<User> users = userRepository.findAllAndSearch(search, search, search, search, pageable);
+        Page<User> users;
+
+        // >>> PHẦN ĐÃ SỬA LỖI: Kiểm tra nếu không có chuỗi tìm kiếm (search là rỗng) <<<
+        if (StringUtils.isBlank(search)) {
+            // Nếu không có tìm kiếm, gọi phương thức findAll cơ bản
+            users = userRepository.findAll(pageable);
+            log.warn("Search parameter is blank. Using basic findAll(Pageable). Users found: {}", users.getTotalElements());
+        } else {
+            // Nếu có chuỗi tìm kiếm, sử dụng logic tìm kiếm tùy chỉnh
+            users = userRepository.findAllAndSearch(search, search, search, search, pageable);
+            log.warn("Using custom findAllAndSearch logic. Users found: {}", users.getTotalElements());
+        }
+        // >>> KẾT THÚC PHẦN SỬA LỖI <<<
+
         List<UserResponse> items = users.map(userMapper::toResponse).getContent();
 
         return PageUtil.getPageResponse(pageable, users, items);

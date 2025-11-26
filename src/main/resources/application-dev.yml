@@ -6,7 +6,7 @@ spring:
     url: jdbc:mysql://localhost:3306/bookstore?createDatabaseIfNotExist=true
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
-    password: phuonglam1
+    password: 123456789
   jpa:
     hibernate:
       ddl-auto: update
