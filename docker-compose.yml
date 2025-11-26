@@ -2,55 +2,56 @@ version: '3.8'
 
 services:
   mysqldb:
-    container_name: mysqldb
     image: mysql:8.0
-    restart: unless-stopped
+    container_name: book_api_mysqldb_1
+    restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: 123456789
-      MYSQL_DATABASE: bookstore
-      MYSQL_USER: bookuser
-      MYSQL_PASSWORD: bookpass
-    ports:
-      - "3306:3306"
-    networks:
-      - backend
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p${MYSQL_ROOT_PASSWORD} || exit 1"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
 
-  bookstore-api:
-    container_name: api-container-bookstore
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: api-image-bookstore:1.0.0
-    env_file:
-      - .env
+  redis:
+    image: redis:7.2-alpine
+    container_name: bookstore_api_redis_1
+    restart: always
     ports:
-      - "8080:8080"
-    networks:
-      - backend
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  web:
+    build: .
+    container_name: bookstore-api
+    ports:
+      - "80:8080"   # hoặc "8080:8080" nếu port 80 bị chiếm
+    restart: unless-stopped
     depends_on:
       mysqldb:
         condition: service_healthy
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      redis:
+        condition: service_started
+    environment:
+      DB_HOST: mysqldb
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE}
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
 
 volumes:
   mysql-data:
-
-networks:
-  backend:
-    driver: bridge
+  redis-data:
